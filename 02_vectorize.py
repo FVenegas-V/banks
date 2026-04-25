@@ -47,9 +47,16 @@ DEFAULT_MODEL = os.environ.get(
     "RAG_EMBEDDING_MODEL",
     "intfloat/multilingual-e5-small",
 )
-FALLBACK_MODEL = "all-MiniLM-L6-v2"  # ya descargado en setup Windows
+FALLBACK_MODEL = "all-MiniLM-L6-v2"
 BATCH_SIZE = 32
 USE_METADATA_CONTEXT = os.environ.get("RAG_PURE_TEXT", "0") != "1"
+
+# Si existe models_cache/ junto al script y SENTENCE_TRANSFORMERS_HOME no está
+# seteado externamente, usamos el cache local automáticamente.
+# Esto garantiza funcionamiento offline en el servidor Windows sin configuración extra.
+_LOCAL_CACHE = Path(__file__).parent / "models_cache"
+if _LOCAL_CACHE.exists() and "SENTENCE_TRANSFORMERS_HOME" not in os.environ:
+    os.environ["SENTENCE_TRANSFORMERS_HOME"] = str(_LOCAL_CACHE)
 
 # Los modelos E5 requieren prefijo: "passage: " para documentos, "query: " para queries.
 # Si el modelo es E5, lo aplicamos automáticamente. La búsqueda (04) debe usar "query: ".

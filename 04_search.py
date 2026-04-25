@@ -28,6 +28,11 @@ import numpy as np
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
+# Auto-detectar models_cache/ local para uso offline (mismo mecanismo que 02_vectorize.py)
+_LOCAL_CACHE = Path(__file__).parent / "models_cache"
+if _LOCAL_CACHE.exists() and "SENTENCE_TRANSFORMERS_HOME" not in os.environ:
+    os.environ["SENTENCE_TRANSFORMERS_HOME"] = str(_LOCAL_CACHE)
+
 from taxonomy import (
     CRITICAL_VARIABLES,
     ECONOMIC_VARIABLES,

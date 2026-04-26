@@ -472,6 +472,7 @@ def process_excel(excel_path: Path) -> tuple[Optional[Document], list[Chunk]]:
             page_end=rc["page_end"],
             position_in_doc=i,
             section_title_raw=rc["section_title_raw"],
+            chunk_date=rc["fecha_iso"],
         ))
 
     # Fecha del documento = primera fecha encontrada en los chunks

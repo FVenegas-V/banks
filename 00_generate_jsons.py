@@ -167,6 +167,8 @@ def detect_doc_type(rel_path: str) -> str:
         return "MINUTA"
     if "/fed/" in p or p.startswith("fed/") or "reunion_fed" in p:
         return "FED_STATEMENT"
+    if "monitor_pm" in p or "monitor pm" in p:
+        return "MONITOR_PM"
     if "research" in p or "jpm" in p:
         return "REPORTE_RESEARCH"
     return "REPORTE_RESEARCH"  # default conservador
@@ -178,7 +180,7 @@ def detect_institution(rel_path: str) -> str:
         return "jpmorgan"
     if "/fed/" in p or p.startswith("fed/") or "fed" in p:
         return "federal_reserve"
-    if "comunicado" in p or "minuta" in p:
+    if "comunicado" in p or "minuta" in p or "monitor_pm" in p or "monitor pm" in p:
         return "banco_central_chile"
     return "unknown"
 
@@ -326,6 +328,173 @@ def chunk_pages(pages: list[str]) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Extracción Excel
+# ---------------------------------------------------------------------------
+
+def _find_header_row(rows: list[tuple]) -> tuple[int, list[str]]:
+    """Devuelve (índice_fila_header, lista_de_headers). Ignora filas vacías al inicio."""
+    for idx, row in enumerate(rows):
+        non_empty = [c for c in row if c is not None and str(c).strip()]
+        if len(non_empty) >= 2:
+            headers = [str(c).strip() if c is not None else "" for c in row]
+            return idx, headers
+    return -1, []
+
+
+def _cell_to_str(value) -> str:
+    """Convierte un valor de celda a string limpio."""
+    if value is None:
+        return ""
+    import datetime as dt
+    if isinstance(value, (dt.datetime, dt.date)):
+        return value.strftime("%Y-%m-%d")
+    return str(value).strip()
+
+
+def extract_cell_chunks(excel_path: Path) -> tuple[list[dict], list[str]]:
+    """
+    Extrae chunks a nivel de celda desde un Excel con estructura:
+      filas = fechas, columnas = categorías de texto narrativo.
+
+    Cada celda con contenido genera un chunk independiente:
+      text = "[YYYY-MM-DD - Nombre Columna]\n<texto de la celda>"
+      section_title_raw = nombre de la columna
+      page_start / page_end = número de hoja (1-based)
+
+    Devuelve (lista_de_raw_chunks, warnings).
+    raw_chunk keys: text, page_start, page_end, section_title_raw, fecha_iso
+    """
+    warnings: list[str] = []
+    raw_chunks: list[dict] = []
+
+    try:
+        import openpyxl
+    except ImportError:
+        warnings.append("missing_openpyxl: pip install openpyxl")
+        return raw_chunks, warnings
+
+    try:
+        wb = openpyxl.load_workbook(excel_path, read_only=True, data_only=True)
+    except Exception as e:
+        warnings.append(f"excel_open_error: {e}")
+        return raw_chunks, warnings
+
+    for sheet_idx, sheet_name in enumerate(wb.sheetnames, start=1):
+        ws = wb[sheet_name]
+        rows = list(ws.iter_rows(values_only=True))
+
+        header_idx, headers = _find_header_row(rows)
+        if header_idx == -1:
+            warnings.append(f"sheet_no_header: {sheet_name}")
+            continue
+
+        # Detectar columna de fecha (primera columna no vacía cuyo header
+        # contiene "fecha" o sea la columna 0/1 con datetimes)
+        fecha_col: Optional[int] = None
+        for ci, h in enumerate(headers):
+            if "fecha" in h.lower():
+                fecha_col = ci
+                break
+        if fecha_col is None:
+            fecha_col = 0  # fallback: primera columna
+
+        # Columnas de contenido textual (todo excepto fecha)
+        content_cols = [
+            (ci, h) for ci, h in enumerate(headers)
+            if ci != fecha_col and h
+        ]
+
+        for row in rows[header_idx + 1:]:
+            if not any(c is not None for c in row):
+                continue  # fila vacía
+
+            fecha_val = row[fecha_col] if fecha_col < len(row) else None
+            fecha_str = _cell_to_str(fecha_val)
+            if not fecha_str:
+                continue  # fila sin fecha, no indexable
+
+            for ci, col_name in content_cols:
+                if ci >= len(row):
+                    continue
+                cell_text = _cell_to_str(row[ci])
+                if not cell_text or len(cell_text) < 10:
+                    continue  # celda vacía o trivial
+
+                text = f"[{fecha_str} - {col_name}]\n{cell_text}"
+                raw_chunks.append({
+                    "text": text,
+                    "page_start": sheet_idx,
+                    "page_end": sheet_idx,
+                    "section_title_raw": col_name,
+                    "fecha_iso": fecha_str,
+                })
+
+    wb.close()
+    return raw_chunks, warnings
+
+
+def process_excel(excel_path: Path) -> tuple[Optional[Document], list[Chunk]]:
+    """
+    Extrae chunks desde un .xlsx con filas=fechas y columnas=categorías de texto.
+    Cada celda con contenido genera un chunk independiente.
+    """
+    rel_path = str(excel_path.relative_to(DATA_DIR))
+    filename = excel_path.name
+    doc_id = slugify_document_id(filename)
+
+    raw_chunks, warnings = extract_cell_chunks(excel_path)
+
+    if not raw_chunks:
+        doc = Document(
+            document_id=doc_id,
+            filename=filename,
+            filepath=rel_path,
+            doc_type_category=detect_doc_type(rel_path),
+            institution=detect_institution(rel_path),
+            document_date=detect_date(filename, ""),
+            total_pages=0,
+            total_chunks=0,
+            char_count=0,
+            extraction_warnings=warnings or ["excel_no_content"],
+        )
+        return doc, []
+
+    chunks: list[Chunk] = []
+    for i, rc in enumerate(raw_chunks):
+        text = rc["text"]
+        chunks.append(Chunk(
+            chunk_id=f"{doc_id}_{i:04d}",
+            document_id=doc_id,
+            text=text,
+            char_count=len(text),
+            token_estimate=max(1, len(text) // 4),
+            page_start=rc["page_start"],
+            page_end=rc["page_end"],
+            position_in_doc=i,
+            section_title_raw=rc["section_title_raw"],
+        ))
+
+    # Fecha del documento = primera fecha encontrada en los chunks
+    first_fecha = raw_chunks[0]["fecha_iso"] if raw_chunks else ""
+    total_chars = sum(c.char_count for c in chunks)
+    total_sheets = max(rc["page_end"] for rc in raw_chunks) if raw_chunks else 0
+
+    doc = Document(
+        document_id=doc_id,
+        filename=filename,
+        filepath=rel_path,
+        doc_type_category=detect_doc_type(rel_path),
+        institution=detect_institution(rel_path),
+        document_date=first_fecha or detect_date(filename, ""),
+        total_pages=total_sheets,
+        total_chunks=len(chunks),
+        char_count=total_chars,
+        extraction_warnings=warnings,
+    )
+    return doc, chunks
+
+
+# ---------------------------------------------------------------------------
 # Pipeline principal
 # ---------------------------------------------------------------------------
 
@@ -405,12 +574,14 @@ def _build_chunk_char_stats(all_chunks: list[Chunk]) -> dict:
 
 def _build_extraction_report(
     pdf_files: list[Path],
+    excel_files: list[Path],
     all_docs: list[Document],
     all_chunks: list[Chunk],
     failed: list[str],
 ) -> dict:
     return {
         "pdf_count": len(pdf_files),
+        "excel_count": len(excel_files),
         "documents_processed": len(all_docs),
         "documents_failed": failed,
         "documents_with_warnings": [
@@ -441,23 +612,34 @@ def _save_outputs(
         json.dump(stats, f, ensure_ascii=False, indent=2)
 
 
+EXCEL_EXTENSIONS = {".xlsx", ".xls"}
+
+
 def main() -> int:
     OUTPUT_DIR.mkdir(exist_ok=True)
 
     pdf_files = sorted(DATA_DIR.rglob("*.pdf"))
-    if not pdf_files:
-        print(f"❌ No hay PDFs en {DATA_DIR}/", file=sys.stderr)
+    excel_files = sorted(
+        p for ext in EXCEL_EXTENSIONS for p in DATA_DIR.rglob(f"*{ext}")
+    )
+    all_files = pdf_files + excel_files
+
+    if not all_files:
+        print(f"❌ No hay PDFs ni Excel en {DATA_DIR}/", file=sys.stderr)
         return 1
 
-    print(f"[00] Procesando {len(pdf_files)} PDFs desde {DATA_DIR}/")
+    print(f"[00] Procesando {len(pdf_files)} PDFs y {len(excel_files)} Excel desde {DATA_DIR}/")
 
     all_docs: list[Document] = []
     all_chunks: list[Chunk] = []
     failed: list[str] = []
 
-    for pdf_path in pdf_files:
-        rel = pdf_path.relative_to(DATA_DIR)
-        doc, chunks = process_pdf(pdf_path)
+    for file_path in all_files:
+        rel = file_path.relative_to(DATA_DIR)
+        if file_path.suffix.lower() in EXCEL_EXTENSIONS:
+            doc, chunks = process_excel(file_path)
+        else:
+            doc, chunks = process_pdf(file_path)
         if doc is None:
             print(f"  ✗ {rel} — no procesable")
             failed.append(str(rel))
@@ -467,7 +649,7 @@ def main() -> int:
         warn_suffix = f" [warnings: {','.join(doc.extraction_warnings)}]" if doc.extraction_warnings else ""
         print(f"  ✓ {rel} — {len(chunks)} chunks, {doc.total_pages} páginas{warn_suffix}")
 
-    stats = _build_extraction_report(pdf_files, all_docs, all_chunks, failed)
+    stats = _build_extraction_report(pdf_files, excel_files, all_docs, all_chunks, failed)
     _save_outputs(all_docs, all_chunks, stats)
 
     char_stats = stats["chunk_char_stats"]

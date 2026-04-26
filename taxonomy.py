@@ -118,6 +118,9 @@ ECONOMIC_VARIABLES: dict[str, tuple[list[str], str]] = {
         "condiciones crediticias", "financial conditions",
         "spread corporativo", "bonos corporativos", "emision corporativa",
         "spread sobre swap", "mercado de capitales", "emision de bonos",
+        "cds", "credit default swap", "riesgo soberano", "riesgo pais",
+        "spread cds", "bonos en dolares", "financiamiento externo",
+        "costo financiamiento exterior", "bonos emitidos en el exterior",
     ], "MEDIUM"),
 
     "INVERSION": ([
@@ -141,6 +144,8 @@ ECONOMIC_VARIABLES: dict[str, tuple[list[str], str]] = {
         "swap", "tasa swap", "curva swap", "spc", "tasa spc",
         "btp", "bcu", "btpcu", "spread sobre swap", "spread sobre spc",
         "tir real", "curva de tasas", "bonos soberanos",
+        "tesoro", "tasa tesoro", "treasury", "bono del tesoro",
+        "tesoro estadounidense", "10 anos", "rendimiento a 10",
     ], "MEDIUM"),
 
     "CONSUMO": ([
@@ -162,6 +167,8 @@ ECONOMIC_VARIABLES: dict[str, tuple[list[str], str]] = {
         "condiciones de liquidez", "mercado monetario",
         "costo de financiamiento", "financiamiento local",
         "spread bonos bancarios", "spread bancario",
+        "montos transados", "profundidad de mercado",
+        "baja profundidad", "escasos montos", "volumen transado",
     ], "MEDIUM"),
 }
 
@@ -260,6 +267,8 @@ def build_section_patterns() -> dict[str, re.Pattern]:
 ENTITY_KEYWORDS: dict[str, list[str]] = {
     "BANCO_CENTRAL_CHILE": [
         "banco central de chile", "bcch", "consejo del banco central",
+        "reunion de politica monetaria", "rpm", "consejo del bcch",
+        "el consejo acordo", "politica monetaria del banco",
     ],
     "FEDERAL_RESERVE": [
         "federal reserve", "the fed", "fomc", "fed funds",
@@ -267,8 +276,16 @@ ENTITY_KEYWORDS: dict[str, list[str]] = {
     ],
     "ECB": ["european central bank", "ecb", "banco central europeo"],
     "IMF": ["imf", "fmi", "fondo monetario internacional"],
-    "PAIS_CHILE": ["chile", "chilena", "chileno"],
-    "PAIS_US": ["estados unidos", "united states", "eeuu", "ee.uu."],
+    "PAIS_CHILE": [
+        "chile", "chilena", "chileno",
+        "clp",             # código ISO del peso chileno
+        "ipsa",            # índice bursátil chileno
+        "mercado local",   # contexto implícito de Monitor PM
+        "curva local",     # curva de tasas local (chilena)
+        "paridad local",   # tipo de cambio local (peso)
+        "peso local",
+    ],
+    "PAIS_US": ["estados unidos", "united states", "eeuu", "ee.uu.", "dxy"],
     "PAIS_EUROZONE": ["eurozona", "euro area", "zona euro"],
     "PAIS_CHINA": ["china", "chinese", "beijing"],
 }
@@ -302,6 +319,31 @@ FORWARD_LOOKING_KEYWORDS = [
 ]
 
 FORWARD_LOOKING_PATTERN = compile_word_pattern(FORWARD_LOOKING_KEYWORDS)
+
+# Texto boilerplate legal/disclaimer (típico de reportes JPMorgan y similares).
+# Los chunks que matcheen esto son ruido y deben recibir penalización máxima.
+BOILERPLATE_KEYWORDS = [
+    "legal entity responsible for the production",
+    "this document is being provided for the exclusive use",
+    "legal entities disclosures",
+    "analyst certification",
+    "reg ac research analyst",
+    "country-/region-specific disclosures",
+    "regulatory disclosures",
+    "not regulated activities in your jurisdiction",
+    "j.p. morgan securities",
+    "jpmorgan chase bank",
+    "securities and exchange board",
+]
+BOILERPLATE_PATTERN = compile_word_pattern(BOILERPLATE_KEYWORDS)
+
+# Secciones propias del Monitor PM (para bonus de importancia base)
+MONITOR_PM_SECTIONS: frozenset[str] = frozenset({
+    "MERCADO_CAMBIARIO", "TASAS_TPM", "RENTA_FIJA",
+    "EXPECTATIVAS_INFLACION", "RENTA_VARIABLE",
+    "FINANCIAMIENTO_USD", "FINANCIAMIENTO_EXTERIOR", "FINANCIAMIENTO_PESOS",
+    "SPREAD_BONOS", "SPREAD_CORPORATIVO", "RESUMEN",
+})
 
 
 # ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@ PASO 3 — Base de datos PostgreSQL con pgvector.
 
 Schema (normalizado):
   documents                  → 1 fila por PDF (metadata del documento)
-  chunks                     → N filas por documento, con embedding vector(384)
+  chunks                     → N filas por documento, con embedding vector(1024)
                               y text_tsv (tsvector) para BM25 híbrido.
 
 Índices:
@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     is_policy_decision BOOLEAN DEFAULT FALSE,
     is_forward_looking BOOLEAN DEFAULT FALSE,
     chunk_date         DATE,
-    embedding          vector(384) NOT NULL,
+    embedding          vector(1024) NOT NULL,
     embedding_model    TEXT,
     created_at         TIMESTAMPTZ DEFAULT NOW()
 );
@@ -245,7 +245,7 @@ def _build_chunk_rows(chunks: list[dict]) -> list[tuple]:
     rows = []
     for chunk in chunks:
         embedding = chunk.get("embedding")
-        if not embedding or len(embedding) != 384:
+        if not embedding or len(embedding) != 1024:
             print(f"[03] ⚠ chunk {chunk.get('chunk_id')} sin embedding válido — skip")
             continue
         rows.append((

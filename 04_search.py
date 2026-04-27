@@ -347,7 +347,7 @@ def load_embedding_model():
     if _MODEL is not None:
         return _MODEL, _MODEL_NAME
     from sentence_transformers import SentenceTransformer
-    name = os.environ.get("RAG_EMBEDDING_MODEL", "intfloat/multilingual-e5-small")
+    name = os.environ.get("RAG_EMBEDDING_MODEL", "BAAI/bge-m3")
     try:
         _MODEL = SentenceTransformer(name)
         _MODEL_NAME = name
@@ -358,11 +358,8 @@ def load_embedding_model():
 
 
 def embed_query(query_text: str) -> np.ndarray:
-    model, name = load_embedding_model()
-    text = query_text
-    if "e5" in name.lower():
-        text = "query: " + text
-    vec = model.encode([text], normalize_embeddings=True, convert_to_numpy=True)[0]
+    model, _ = load_embedding_model()
+    vec = model.encode([query_text], normalize_embeddings=True, convert_to_numpy=True)[0]
     return vec
 
 

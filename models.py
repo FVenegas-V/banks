@@ -10,7 +10,7 @@ Jerarquía:
   EnrichedChunk — Chunk + señales semánticas del enriquecimiento (paso 1)
 
 El embedding se almacena como list[float] en los JSON intermedios; la BD usa
-vector(384) de pgvector.
+vector(1024) de pgvector.
 """
 from __future__ import annotations
 

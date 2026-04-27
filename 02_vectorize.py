@@ -45,9 +45,9 @@ STATS_PATH = Path("logs/vectorization_report.json")
 
 DEFAULT_MODEL = os.environ.get(
     "RAG_EMBEDDING_MODEL",
-    "intfloat/multilingual-e5-small",
+    "BAAI/bge-m3",
 )
-FALLBACK_MODEL = "all-MiniLM-L6-v2"
+FALLBACK_MODEL = "intfloat/multilingual-e5-small"
 BATCH_SIZE = 32
 USE_METADATA_CONTEXT = os.environ.get("RAG_PURE_TEXT", "0") != "1"
 
@@ -58,17 +58,8 @@ _LOCAL_CACHE = Path(__file__).parent / "models_cache"
 if _LOCAL_CACHE.exists() and "SENTENCE_TRANSFORMERS_HOME" not in os.environ:
     os.environ["SENTENCE_TRANSFORMERS_HOME"] = str(_LOCAL_CACHE)
 
-# Los modelos E5 requieren prefijo: "passage: " para documentos, "query: " para queries.
-# Si el modelo es E5, lo aplicamos automáticamente. La búsqueda (04) debe usar "query: ".
-E5_PASSAGE_PREFIX = "passage: "
-
-
-def is_e5_model(name: str) -> bool:
-    return "e5" in name.lower()
-
-
 def build_embed_text(chunk: dict, model_name: str) -> str:
-    """Construye el texto que va al modelo: prefijo E5 + contexto + texto."""
+    """Construye el texto que va al modelo: contexto + texto."""
     base = chunk["text"]
 
     if USE_METADATA_CONTEXT:
@@ -83,8 +74,6 @@ def build_embed_text(chunk: dict, model_name: str) -> str:
         ctx = "[" + " | ".join(p for p in parts if p) + "]"
         base = f"{ctx} {base}"
 
-    if is_e5_model(model_name):
-        base = E5_PASSAGE_PREFIX + base
     return base
 
 

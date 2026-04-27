@@ -68,6 +68,7 @@ DOC_TYPE_HINTS = {
     "MINUTA": ["minuta", "reunion de politica", "consejeros"],
     "FED_STATEMENT": ["fed", "federal reserve", "fomc"],
     "REPORTE_RESEARCH": ["research", "jpmorgan", "jpm", "reporte"],
+    "MONITOR_PM": ["monitor pm", "monitor de mercado", "monitor financiero"],
 }
 
 VARIABLE_PATTERNS = build_variable_patterns()
@@ -150,10 +151,11 @@ def build_filters_sql(parsed: dict) -> tuple[str, list]:
         clauses.append("d.doc_type_category = ANY(%s)")
         params.append(parsed["doc_types"])
     if parsed["year_from"] is not None:
-        clauses.append("d.document_year >= %s")
+        # Para Monitor PM usamos chunk_date (fecha de celda); para PDFs, document_year
+        clauses.append("COALESCE(EXTRACT(YEAR FROM c.chunk_date)::int, d.document_year) >= %s")
         params.append(parsed["year_from"])
     if parsed["year_to"] is not None:
-        clauses.append("d.document_year <= %s")
+        clauses.append("COALESCE(EXTRACT(YEAR FROM c.chunk_date)::int, d.document_year) <= %s")
         params.append(parsed["year_to"])
     if parsed["sections"]:
         clauses.append("c.section_type = ANY(%s)")
@@ -188,6 +190,7 @@ def vector_recall(conn, query_embedding: list[float], parsed: dict, n: int) -> l
         c.economic_variables,
         c.numeric_values,
         c.tags,
+        c.chunk_date,
         d.filename, d.doc_type_category, d.document_date,
         1 - (c.embedding <=> %s::vector) AS vector_score,
         c.embedding
@@ -217,6 +220,7 @@ def lexical_recall(conn, query_text: str, parsed: dict, n: int) -> list[dict]:
         c.economic_variables,
         c.numeric_values,
         c.tags,
+        c.chunk_date,
         d.filename, d.doc_type_category, d.document_date,
         ts_rank_cd(c.text_tsv, plainto_tsquery('simple', %s)) AS lexical_score,
         c.embedding
@@ -445,8 +449,9 @@ def format_text_output(results: list[dict], parsed: dict) -> str:
             + (f"-{r['page_end']}" if r['page_end'] != r['page_start'] else "")
             + f" · {r['doc_type_category']} · {r['section_type']}"
         )
+        effective_date = r.get("chunk_date") or r.get("document_date") or "-"
         lines.append(
-            f"    fecha: {r.get('document_date','-')} | imp: {r['importance_score']:.2f} | "
+            f"    fecha: {effective_date} | imp: {r['importance_score']:.2f} | "
             f"rrf: {r.get('rrf_score',0):.3f} | final: {r.get('final_score',0):.3f}"
         )
         lines.append(f"    vars: {vars_str}")

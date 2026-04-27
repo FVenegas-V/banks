@@ -40,9 +40,12 @@ from typing import Optional
 
 from models import EnrichedChunk
 from taxonomy import (
+    BOILERPLATE_PATTERN,
     CRITICAL_VARIABLES,
     ECONOMIC_VARIABLES,
     FORWARD_LOOKING_PATTERN,
+    MONITOR_PM_SECTION_MAP,
+    MONITOR_PM_SECTIONS,
     NUMERIC_PATTERNS,
     build_entity_patterns,
     build_section_patterns,
@@ -74,11 +77,11 @@ IMPORTANCE_WEIGHTS = {
     "policy_section": 0.25,     # DECISION o VOTACION
     "outlook_section": 0.15,    # PROYECCION o RIESGOS
     "analysis_section": 0.08,   # ANALISIS
+    "monitor_pm_section": 0.12, # sección de Monitor PM (contenido curado de mercado)
     "forward_looking": 0.08,
     "entities": 0.10,           # mención de banco central / país (sat. en 2)
-    # Penalización: chunks sin variables ni datos son ruido semántico.
-    # Se resta del score final; así no contaminan top-k con importance alto.
-    "no_variables_penalty": 0.12,
+    "no_variables_penalty": 0.12,   # sin variables ni datos → ruido semántico
+    "boilerplate_penalty": 0.50,    # texto legal/disclaimer → penalización fuerte
 }
 
 # Compilamos patrones una vez (al import)
@@ -214,7 +217,12 @@ def calculate_importance(
     section_type: str,
     entities: dict,
     is_fwd: bool,
+    text_norm: str = "",
 ) -> float:
+    # Boilerplate legal: penalización máxima antes de cualquier otro cálculo
+    if text_norm and BOILERPLATE_PATTERN.search(text_norm):
+        return 0.0
+
     levels = {d["importance"] for d in variables.values()}
     critical_count = sum(1 for d in variables.values() if d["importance"] == "CRITICAL")
 
@@ -241,6 +249,8 @@ def calculate_importance(
         score += w["outlook_section"]
     elif section_type == "ANALISIS":
         score += w["analysis_section"]
+    elif section_type in MONITOR_PM_SECTIONS:
+        score += w["monitor_pm_section"]
 
     if is_fwd:
         score += w["forward_looking"]
@@ -251,7 +261,7 @@ def calculate_importance(
 
     # Penalizar chunks sin contenido económico: sin variables Y sin datos numéricos
     if not variables and not numerics:
-        score -= w.get("no_variables_penalty", 0)
+        score -= w["no_variables_penalty"]
 
     return round(max(0.0, min(1.0, score)), 3)
 
@@ -281,20 +291,29 @@ def _count_chunks_per_doc(chunks: list[dict]) -> dict[str, int]:
 
 def _enrich_chunk(chunk: dict, doc: dict, total_chunks_in_doc: int) -> EnrichedChunk:
     text_norm = normalize_text(chunk["text"])
+    doc_type = doc.get("doc_type_category", "")
 
     variables = detect_variables(text_norm)
     numerics = extract_numerics(chunk["text"])
     entities = detect_entities(text_norm)
     temporal = extract_temporal(text_norm)
-    section_type, section_conf = detect_section(
-        text_norm,
-        chunk["position_in_doc"],
-        total_chunks_in_doc,
-        chunk.get("section_title_raw"),
-    )
+
+    # Monitor PM: la sección se deriva directamente del nombre de columna
+    section_hint = chunk.get("section_title_raw", "")
+    if doc_type == "MONITOR_PM" and section_hint and section_hint.strip() in MONITOR_PM_SECTION_MAP:
+        section_type = MONITOR_PM_SECTION_MAP[section_hint.strip()]
+        section_conf = 1.0
+    else:
+        section_type, section_conf = detect_section(
+            text_norm,
+            chunk["position_in_doc"],
+            total_chunks_in_doc,
+            section_hint,
+        )
+
     is_fwd = bool(FORWARD_LOOKING_PATTERN.search(text_norm))
     tags = derive_tags(text_norm, variables, numerics, section_type)
-    importance = calculate_importance(variables, numerics, section_type, entities, is_fwd)
+    importance = calculate_importance(variables, numerics, section_type, entities, is_fwd, text_norm)
 
     return EnrichedChunk(
         chunk_id=chunk["chunk_id"],
@@ -304,7 +323,7 @@ def _enrich_chunk(chunk: dict, doc: dict, total_chunks_in_doc: int) -> EnrichedC
         page_start=chunk["page_start"],
         page_end=chunk["page_end"],
         position_in_doc=chunk["position_in_doc"],
-        doc_type_category=doc.get("doc_type_category", "REPORTE_RESEARCH"),
+        doc_type_category=doc_type or "REPORTE_RESEARCH",
         institution=doc.get("institution", "unknown"),
         document_date=doc.get("document_date"),
         section_type=section_type,
@@ -317,6 +336,7 @@ def _enrich_chunk(chunk: dict, doc: dict, total_chunks_in_doc: int) -> EnrichedC
         importance_score=importance,
         is_policy_decision="DECISION_POLITICA" in tags,
         is_forward_looking=is_fwd,
+        chunk_date=chunk.get("chunk_date"),
     )
 
 

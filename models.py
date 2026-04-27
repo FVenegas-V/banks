@@ -47,6 +47,7 @@ class Chunk:
     page_end: int
     position_in_doc: int               # 0-based
     section_title_raw: Optional[str]   # título crudo detectado durante chunking; 01 lo normaliza
+    chunk_date: Optional[str] = None   # ISO YYYY-MM-DD; solo Excel (Monitor PM), None para PDFs
 
 
 # ---------------------------------------------------------------------------
@@ -78,3 +79,4 @@ class EnrichedChunk:
     importance_score: float    # 0.0–1.0, calibrado
     is_policy_decision: bool
     is_forward_looking: bool
+    chunk_date: Optional[str] = None   # ISO YYYY-MM-DD; solo Excel (Monitor PM), None para PDFs

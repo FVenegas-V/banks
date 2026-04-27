@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     importance_score   REAL NOT NULL DEFAULT 0,
     is_policy_decision BOOLEAN DEFAULT FALSE,
     is_forward_looking BOOLEAN DEFAULT FALSE,
+    chunk_date         DATE,
     embedding          vector(384) NOT NULL,
     embedding_model    TEXT,
     created_at         TIMESTAMPTZ DEFAULT NOW()
@@ -115,6 +116,7 @@ INDICES_SQL = [
     # legible y convencional en queries.
     "CREATE INDEX IF NOT EXISTS idx_chunks_embedding_hnsw ON chunks "
     "USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64)",
+    "CREATE INDEX IF NOT EXISTS idx_chunks_chunk_date ON chunks(chunk_date) WHERE chunk_date IS NOT NULL",
 ]
 
 
@@ -187,6 +189,10 @@ def cmd_setup(force_drop: bool = False) -> int:
                 cur.execute("DROP TABLE IF EXISTS documents CASCADE")
 
             cur.execute(SCHEMA_SQL)
+            # Migración: agrega chunk_date si la tabla ya existía sin ella
+            cur.execute(
+                "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS chunk_date DATE"
+            )
             print("[03] ✓ schema (documents, chunks) creado")
 
             for sql in INDICES_SQL:
@@ -260,6 +266,7 @@ def _build_chunk_rows(chunks: list[dict]) -> list[tuple]:
             float(chunk.get("importance_score", 0)),
             bool(chunk.get("is_policy_decision", False)),
             bool(chunk.get("is_forward_looking", False)),
+            chunk.get("chunk_date"),
             _format_vector(embedding),
             chunk.get("embedding_model"),
         ))
@@ -303,12 +310,12 @@ def _insert_chunks(cur, chunk_rows: list[tuple]) -> None:
             position_in_doc, section_type, section_confidence,
             economic_variables, numeric_values, entities, temporal_refs,
             tags, importance_score, is_policy_decision, is_forward_looking,
-            embedding, embedding_model
+            chunk_date, embedding, embedding_model
         ) VALUES %s
         """,
         chunk_rows,
         template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
-                 "%s, %s, %s, %s::vector, %s)",
+                 "%s, %s, %s, %s, %s::vector, %s)",
     )
     cur.execute(
         "UPDATE chunks SET text_tsv = to_tsvector('simple', text) WHERE text_tsv IS NULL"

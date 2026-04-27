@@ -45,9 +45,9 @@ STATS_PATH = Path("logs/vectorization_report.json")
 
 DEFAULT_MODEL = os.environ.get(
     "RAG_EMBEDDING_MODEL",
-    "BAAI/bge-m3",
+    "Qwen/Qwen3-Embedding-0.6B",
 )
-FALLBACK_MODEL = "intfloat/multilingual-e5-small"
+FALLBACK_MODEL = "BAAI/bge-m3"
 BATCH_SIZE = 32
 USE_METADATA_CONTEXT = os.environ.get("RAG_PURE_TEXT", "0") != "1"
 

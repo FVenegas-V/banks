@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Sistema RAG para banco central chileno. Procesa PDFs financieros (Comunicados BCCh, Minutas del Consejo, reportes JPMorgan, Fed Statements) y un Excel de Monitor PM en un corpus semántico consultable con citación por página.
 
-Stack: `pypdf` + `openpyxl` + `sentence-transformers` (BAAI/bge-m3, 1024-dim) + PostgreSQL + pgvector (HNSW) + búsqueda híbrida BM25/vector con RRF y MMR.
+Stack: `pypdf` + `openpyxl` + `sentence-transformers` (Qwen3-Embedding-0.6B, 1024-dim) + PostgreSQL + pgvector (HNSW) + búsqueda híbrida BM25/vector con RRF y MMR.
 
 ## Comandos esenciales
 
@@ -60,7 +60,7 @@ Datos_prueba/Monitor PM/textos_monitor_pm.xlsx
 | `taxonomy.py` | Patterns de variables, secciones, entidades, boilerplate. Compartido por paso 1 y paso 4 |
 | `00_generate_jsons.py` | PDF+Excel → chunks semánticos (por párrafos, target 600 chars, overlap 100) |
 | `01_enrich_metadata.py` | Scoring de sección, variables económicas, importance_score |
-| `02_vectorize.py` | Embeddings con BGE-M3, prefijo contextual, normalización L2 |
+| `02_vectorize.py` | Embeddings con Qwen3-Embedding-0.6B, prefijo contextual, normalización L2 |
 | `03_database.py` | Schema PostgreSQL, HNSW index, bulk upsert, stats |
 | `04_search.py` | Parse query NL, recall dual (vector+BM25), RRF, MMR, importance boost |
 | `05_query.py` | Formatea contexto RAG + few-shot prompt para LLM local |
@@ -161,7 +161,7 @@ chunks    (chunk_id PK, document_id FK,
 |---|---|---|
 | `PGDATABASE` | `rag_banco` | Usar otra BD |
 | `PGUSER` / `PGPASSWORD` | SO / vacío | Servidor con auth |
-| `RAG_EMBEDDING_MODEL` | `BAAI/bge-m3` | Cambiar modelo |
+| `RAG_EMBEDDING_MODEL` | `Qwen/Qwen3-Embedding-0.6B` | Cambiar modelo |
 | `RAG_PURE_TEXT` | `0` | `1` = no inyectar metadata context en embedding |
 | `SENTENCE_TRANSFORMERS_HOME` | auto-detectado | Solo si `models_cache/` no está junto al script |
 

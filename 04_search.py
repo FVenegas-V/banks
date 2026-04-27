@@ -347,7 +347,7 @@ def load_embedding_model():
     if _MODEL is not None:
         return _MODEL, _MODEL_NAME
     from sentence_transformers import SentenceTransformer
-    name = os.environ.get("RAG_EMBEDDING_MODEL", "BAAI/bge-m3")
+    name = os.environ.get("RAG_EMBEDDING_MODEL", "Qwen/Qwen3-Embedding-0.6B")
     try:
         _MODEL = SentenceTransformer(name)
         _MODEL_NAME = name
@@ -359,7 +359,13 @@ def load_embedding_model():
 
 def embed_query(query_text: str) -> np.ndarray:
     model, _ = load_embedding_model()
-    vec = model.encode([query_text], normalize_embeddings=True, convert_to_numpy=True)[0]
+    # Qwen3-Embedding requiere prompt_name="query" para codificar consultas
+    vec = model.encode(
+        [query_text],
+        prompt_name="query",
+        normalize_embeddings=True,
+        convert_to_numpy=True,
+    )[0]
     return vec
 
 

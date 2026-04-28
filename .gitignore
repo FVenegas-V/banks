@@ -6,7 +6,8 @@ __pycache__/
 *.pyd
 .DS_Store
 
-# Modelos descargados (grandes, se re-descargan con SENTENCE_TRANSFORMERS_HOME)
+# Modelos descargados (clonar desde HuggingFace en models/<org>/<nombre>)
+models/
 models_cache/
 
 # Variables de entorno locales

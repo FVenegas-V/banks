@@ -28,10 +28,7 @@ import numpy as np
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-# Auto-detectar models_cache/ local para uso offline (mismo mecanismo que 02_vectorize.py)
-_LOCAL_CACHE = Path(__file__).parent / "models_cache"
-if _LOCAL_CACHE.exists() and "SENTENCE_TRANSFORMERS_HOME" not in os.environ:
-    os.environ["SENTENCE_TRANSFORMERS_HOME"] = str(_LOCAL_CACHE)
+_MODELS_DIR = Path(__file__).parent / "models"
 
 from taxonomy import (
     CRITICAL_VARIABLES,
@@ -134,7 +131,7 @@ def connect():
         host=os.getenv("PGHOST", "localhost"),
         port=int(os.getenv("PGPORT", 5432)),
         user=os.getenv("PGUSER", os.getenv("USER", "postgres")),
-        password=os.getenv("PGPASSWORD", ""),
+        password=os.getenv("PGPASSWORD", "postgres"),
         database=DB_NAME,
     )
 
@@ -347,7 +344,9 @@ def load_embedding_model():
     if _MODEL is not None:
         return _MODEL, _MODEL_NAME
     from sentence_transformers import SentenceTransformer
-    name = os.environ.get("RAG_EMBEDDING_MODEL", "intfloat/multilingual-e5-small")
+    model_id = os.environ.get("RAG_EMBEDDING_MODEL", "intfloat/multilingual-e5-small")
+    local_path = _MODELS_DIR / model_id
+    name = str(local_path) if local_path.exists() else model_id
     try:
         _MODEL = SentenceTransformer(name)
         _MODEL_NAME = name

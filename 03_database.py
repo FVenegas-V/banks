@@ -129,7 +129,7 @@ def get_conn_params(database: Optional[str] = None) -> dict:
         "host": os.getenv("PGHOST", "localhost"),
         "port": int(os.getenv("PGPORT", 5432)),
         "user": os.getenv("PGUSER", os.getenv("USER", "postgres")),
-        "password": os.getenv("PGPASSWORD", ""),
+        "password": os.getenv("PGPASSWORD", "postgres"),
         "database": database or DB_NAME,
     }
 
@@ -140,8 +140,9 @@ def connect(database: Optional[str] = None):
 
 def ensure_database_exists() -> None:
     """Crea la base de datos si no existe (conectándose a 'postgres')."""
-    with connect(database="postgres") as conn:
-        conn.autocommit = True
+    conn = connect(database="postgres")
+    conn.autocommit = True  # must be set before any cursor use; CREATE DATABASE needs no transaction
+    try:
         with conn.cursor() as cur:
             cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (DB_NAME,))
             if cur.fetchone() is None:
@@ -149,6 +150,8 @@ def ensure_database_exists() -> None:
                 print(f"[03] ✓ base de datos '{DB_NAME}' creada")
             else:
                 print(f"[03] ✓ base de datos '{DB_NAME}' ya existe")
+    finally:
+        conn.close()
 
 
 def check_pgvector_available() -> bool:

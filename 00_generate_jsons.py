@@ -211,8 +211,10 @@ def detect_date(filename: str, first_page_text: str) -> Optional[str]:
     return m.group(1) if m else None
 
 
-def slugify_document_id(filename: str) -> str:
-    base = Path(filename).stem.lower()
+def slugify_document_id(rel_path: str) -> str:
+    # Use the full relative path (without extension) so that files with the
+    # same name in different subdirectories get distinct document_ids.
+    base = Path(rel_path).with_suffix("").as_posix().lower()
     return re.sub(r"[^a-z0-9]+", "_", base).strip("_")
 
 
@@ -440,7 +442,7 @@ def process_excel(excel_path: Path) -> tuple[Optional[Document], list[Chunk]]:
     """
     rel_path = str(excel_path.relative_to(DATA_DIR))
     filename = excel_path.name
-    doc_id = slugify_document_id(filename)
+    doc_id = slugify_document_id(rel_path)
 
     raw_chunks, warnings = extract_cell_chunks(excel_path)
 
@@ -502,7 +504,7 @@ def process_excel(excel_path: Path) -> tuple[Optional[Document], list[Chunk]]:
 def process_pdf(pdf_path: Path) -> tuple[Optional[Document], list[Chunk]]:
     rel_path = str(pdf_path.relative_to(DATA_DIR))
     filename = pdf_path.name
-    doc_id = slugify_document_id(filename)
+    doc_id = slugify_document_id(rel_path)
 
     pages, warnings = extract_pages(pdf_path)
 

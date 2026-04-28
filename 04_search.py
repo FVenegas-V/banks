@@ -134,7 +134,7 @@ def connect():
         host=os.getenv("PGHOST", "localhost"),
         port=int(os.getenv("PGPORT", 5432)),
         user=os.getenv("PGUSER", os.getenv("USER", "postgres")),
-        password=os.getenv("PGPASSWORD", ""),
+        password=os.getenv("PGPASSWORD", "postgres"),
         database=DB_NAME,
     )
 

@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git lfs *)",
+      "Bash(hf --version)",
+      "Bash(git clone *)",
+      "Bash(psql --version)",
+      "PowerShell(Invoke-WebRequest -Uri \"https://api.github.com/repos/pgvector/pgvector/releases/latest\" -UseBasicParsing)",
+      "PowerShell(Invoke-WebRequest -Uri \"https://api.github.com/repos/pgvector/pgvector/releases\" -UseBasicParsing)",
+      "PowerShell($releases = Invoke-WebRequest -Uri \"https://api.github.com/repos/pgvector/pgvector/releases\" -UseBasicParsing | ConvertFrom-Json; $releases[0].tag_name; $releases[0].assets | Select-Object name, browser_download_url)",
+      "PowerShell(winget search pgvector)",
+      "WebFetch(domain:github.com)",
+      "PowerShell(wsl --status 2>&1)",
+      "PowerShell(Get-Command cl.exe -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Command nmake.exe -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Command wsl.exe -ErrorAction SilentlyContinue)",
+      "PowerShell($r = Invoke-WebRequest -Uri \"https://github.com/pgvector/pgvector/releases\" -UseBasicParsing; $r.Content | Select-String -Pattern \"\\\\.zip\" | Select-Object -First 10)",
+      "PowerShell(winget search \"visual studio build tools\")",
+      "PowerShell($url = \"https://github.com/pgvector/pgvector/releases/download/v0.8.0/pgvector-v0.8.0-pg14-windows-x86_64.zip\"; try { $r = Invoke-WebRequest -Uri $url -Method Head -UseBasicParsing; \"Existe: $\\($r.StatusCode\\)\" } catch { \"No existe: $_\" })",
+      "PowerShell($r = Invoke-WebRequest -Uri \"https://api.github.com/repos/pgvector/pgvector/tags\" -UseBasicParsing -Headers @{\"User-Agent\"=\"PowerShell\"}; \\($r.Content | ConvertFrom-Json\\) | Select-Object -First 5 name)",
+      "Bash(python run.py full)",
+      "Bash(PYTHONIOENCODING=utf-8 python run.py full)",
+      "Bash(pip install *)",
+      "Bash(PYTHONIOENCODING=utf-8 python 03_database.py reset)",
+      "Bash(PYTHONIOENCODING=utf-8 python run.py step 0)",
+      "Bash(PYTHONIOENCODING=utf-8 python run.py step 1)",
+      "Bash(PYTHONIOENCODING=utf-8 python 02_vectorize.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python 03_database.py load)",
+      "Bash(python -c \"import json; docs=json.load\\(open\\('logs/documents.json'\\)\\); [print\\(d['document_id'], '|', d['filepath']\\) for d in docs]\")",
+      "Bash(PYTHONIOENCODING=utf-8 python 04_search.py \"política monetaria 2022\" 3)"
+    ]
+  }
+}
